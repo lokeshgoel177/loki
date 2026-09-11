@@ -2,13 +2,13 @@
 
 > **Vision:** _The AI agent is a local service, not a terminal process. Code is fetched on demand, not cached in advance. Build the agent once. Render it everywhere._
 
-This document outlines the detailed development roadmap for **Loki**, a lightweight, persistent local AI coding-agent platform. It reflects the **v2 Architecture** established in [Loki v2 Design Document](designdoc_claude.md) (and foundational concepts in [DESIGN.md](DESIGN.md)), incorporating a **zero-index, lazy-fetch, minimal-cache** philosophy while delivering daemon-based multi-client multiplexing and detached execution.
+This document outlines the detailed development roadmap for **Loki**, a lightweight, persistent local AI coding-agent platform. It reflects the **v2 Architecture** established in [Loki Master Architecture & System Design Document](DESIGN.md), incorporating a **zero-index, lazy-fetch, minimal-cache** philosophy while delivering daemon-based multi-client multiplexing and detached execution.
 
 ---
 
 ## 1. Architectural Principles & North Star
 
-The roadmap is strictly guided by the architectural invariants defined in `docs/designdoc_claude.md`:
+The roadmap is strictly guided by the architectural invariants defined in `docs/DESIGN.md`:
 
 1. **Persistent Daemon Backend (`agentd`):** A single per-user Go service manages all sessions, tool connections, LLM communication, subprocesses, context, and state.
 2. **Thin, Ephemeral Clients:** Terminal CLIs, IDE extensions (Neovim, VS Code), and future Web UIs are lightweight rendering viewports that connect, attach, detach, and reconnect via local IPC without disrupting running tasks.
@@ -83,7 +83,7 @@ The roadmap is strictly guided by the architectural invariants defined in `docs/
 #### Milestone 0.1: Project Scaffolding & Tooling
 
 - [ ] Initialize Go module (`go.mod`, Go 1.23+) at repository root.
-- [ ] Implement directory structure matching `designdoc_claude.md` Section 19:
+- [ ] Implement directory structure matching `docs/DESIGN.md` Section 5.1 (Package Layout):
   ```text
   cmd/
     agentd/             # Daemon entrypoint
@@ -473,4 +473,4 @@ Every milestone must satisfy the following criteria prior to merging and release
 
 - **Branching Strategy:** Feature branches branched from `master` (`feat/<feature-name>`, `fix/<bug-name>`).
 - **Code Standards:** Strictly formatted with `gofmt`, checked with `golangci-lint` (including `govet`, `staticcheck`, `errcheck`, and `gosec`).
-- **Documentation Updates:** Any architectural changes must be reflected in `docs/designdoc_claude.md` and tracked in `docs/roadmap.md`.
+- **Documentation Updates:** Any architectural changes must be reflected in `docs/DESIGN.md` and tracked in `docs/roadmap.md`.

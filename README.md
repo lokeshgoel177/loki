@@ -20,9 +20,8 @@ By combining **Claude Code's lazy-fetch, zero-index, minimal-RAM efficiency** wi
 
 ## Documentation
 
-- [Loki v2 Architecture & Design Document (Claude-Inspired)](docs/designdoc_claude.md)
+- [Loki Master Architecture & System Design Document](docs/DESIGN.md)
 - [Loki Engineering Roadmap](docs/roadmap.md)
-- [Loki v1 Architecture Document (Archive)](docs/DESIGN.md)
 
 ## Roadmap Summary
 
