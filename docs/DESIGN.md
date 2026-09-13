@@ -267,14 +267,14 @@ Communication between `agentd` and clients occurs strictly over local IPC. Netwo
 - **Linux & macOS:** Unix Domain Socket located at `$XDG_RUNTIME_DIR/loki/agentd.sock` (fallback: `~/.loki/agentd.sock`). Immediately after calling `net.Listen("unix", socketPath)`, the daemon calls `os.Chmod(socketPath, 0600)` to ensure owner-only read/write access and prevent unauthorized local user access.
 - **Windows:** Win32 Named Pipe located at `\\.\pipe\loki-agentd-<username>`. The pipe security descriptor enforces a Discretionary Access Control List (DACL) granting full access exclusively to the current user's security identifier (SID).
 
-#### Length-Prefixed Wire Framing
-All messages on the wire use a 4-byte big-endian `uint32` length prefix followed by UTF-8 encoded JSON payloads. The transport enforces a hard frame cap of **16 MB** to prevent buffer overflow attacks.
+#### Length-Prefixed Wire Framing & JSON-RPC 2.0 Alignment
+All messages on the wire use a 4-byte big-endian `uint32` length prefix followed by UTF-8 encoded JSON payloads aligned with the **JSON-RPC 2.0** specification. The transport enforces a hard frame cap of **16 MB** to prevent buffer overflow attacks.
 
 ```text
-┌──────────────────────────────────────┬──────────────────────────────────────┐
-│ Length Prefix: 4 Bytes (Big-Endian)  │ Payload: N Bytes (Valid UTF-8 JSON)  │
-│ [ 0x00, 0x00, 0x01, 0x2A ] (298 B)   │ {"version":1,"seq_id":1,... }        │
-└──────────────────────────────────────┴──────────────────────────────────────┘
+┌──────────────────────────────────────┬──────────────────────────────────────────┐
+│ Length Prefix: 4 Bytes (Big-Endian)  │ Payload: N Bytes (Valid UTF-8 JSON-RPC)  │
+│ [ 0x00, 0x00, 0x01, 0x2A ] (298 B)   │ {"jsonrpc":"2.0","method":"...","seq":1} │
+└──────────────────────────────────────┴──────────────────────────────────────────┘
 ```
 
 #### Wire Protocol Contracts (`internal/protocol`)
@@ -293,7 +293,7 @@ import (
 
 const (
     MaxFramePayloadSize uint32 = 16 * 1024 * 1024 // 16 MB max frame size
-    CurrentVersion      int    = 1
+    JSONRPCVersion      string = "2.0"
 )
 
 type Transport interface {
@@ -301,15 +301,70 @@ type Transport interface {
     Dial(addr string) (net.Conn, error)
 }
 
+// RPCError implements the standard JSON-RPC 2.0 error object.
+type RPCError struct {
+    Code    int             `json:"code"`
+    Message string          `json:"message"`
+    Data    json.RawMessage `json:"data,omitempty"`
+}
+
+func (e *RPCError) Error() string {
+    return fmt.Sprintf("rpc error %d: %s", e.Code, e.Message)
+}
+
+// Standard JSON-RPC 2.0 error codes
+const (
+    ErrCodeParseError     = -32700
+    ErrCodeInvalidRequest = -32600
+    ErrCodeMethodNotFound = -32601
+    ErrCodeInvalidParams  = -32602
+    ErrCodeInternalError  = -32603
+)
+
+// MessageKind classifies the envelope into an exhaustive enum for router dispatch.
+type MessageKind uint8
+
+const (
+    KindInvalid MessageKind = iota
+    KindRequest
+    KindNotification
+    KindResponse
+)
+
+// MessageEnvelope represents a framed JSON-RPC 2.0 message, response, or streaming notification.
 type MessageEnvelope struct {
-    Version   int             `json:"version"`             // Wire protocol version (currently 1)
-    ID        string          `json:"id"`                  // Unique client or server message ID
-    SeqID     uint64          `json:"seq_id,omitempty"`   // Monotonically increasing broker sequence ID
-    SessionID string          `json:"session_id,omitempty"`
-    Type      string          `json:"type"`                // RPC method or Pub/Sub topic
-    Payload   json.RawMessage `json:"payload"`             // Typed body
+    JSONRPC   string          `json:"jsonrpc"`              // Always "2.0"
+    ID        string          `json:"id,omitempty"`        // Client/server request ID; omitted on notifications
+    Method    string          `json:"method,omitempty"`    // RPC method or Pub/Sub topic (e.g. "session.prompt", "message.delta")
+    Params    json.RawMessage `json:"params,omitempty"`    // Request arguments or event data
+    Result    json.RawMessage `json:"result,omitempty"`    // Successful RPC result
+    Error     *RPCError       `json:"error,omitempty"`     // Error response object if failed
+    SeqID     uint64          `json:"seq_id,omitempty"`    // Monotonically increasing broker sequence ID for replay/rehydration
+    SessionID string          `json:"session_id,omitempty"` // Target or originating session
     Timestamp time.Time       `json:"timestamp"`           // UTC emission timestamp
 }
+
+// Kind classifies the envelope for exhaustive switch dispatch in multiplexers.
+func (env *MessageEnvelope) Kind() MessageKind {
+    if env == nil {
+        return KindInvalid
+    }
+    switch {
+    case env.Method != "" && env.ID != "":
+        return KindRequest
+    case env.Method != "" && env.ID == "":
+        return KindNotification
+    case env.Method == "" && env.ID != "":
+        return KindResponse
+    default:
+        return KindInvalid
+    }
+}
+
+// Convenience predicates
+func (env *MessageEnvelope) IsRequest() bool      { return env.Kind() == KindRequest }
+func (env *MessageEnvelope) IsNotification() bool { return env.Kind() == KindNotification }
+func (env *MessageEnvelope) IsResponse() bool     { return env.Kind() == KindResponse }
 
 type FramedConn struct {
     conn    net.Conn
@@ -321,6 +376,13 @@ func NewFramedConn(c net.Conn) *FramedConn {
 }
 
 func (fc *FramedConn) WriteEnvelope(env *MessageEnvelope) error {
+    if env.JSONRPC == "" {
+        env.JSONRPC = JSONRPCVersion
+    }
+    if env.Timestamp.IsZero() {
+        env.Timestamp = time.Now().UTC()
+    }
+
     data, err := json.Marshal(env)
     if err != nil {
         return fmt.Errorf("protocol: marshal failed: %w", err)
@@ -361,10 +423,14 @@ func (fc *FramedConn) ReadEnvelope() (*MessageEnvelope, error) {
     if err := json.Unmarshal(buf, &env); err != nil {
         return nil, fmt.Errorf("protocol: unmarshal frame payload failed: %w", err)
     }
-    if env.Version != CurrentVersion {
-        return nil, fmt.Errorf("protocol: incompatible protocol version %d", env.Version)
+    if env.JSONRPC != JSONRPCVersion {
+        return nil, fmt.Errorf("protocol: invalid jsonrpc version %q (expected %q)", env.JSONRPC, JSONRPCVersion)
     }
     return &env, nil
+}
+
+func (fc *FramedConn) Close() error {
+    return fc.conn.Close()
 }
 ```
 
@@ -1520,12 +1586,11 @@ func (b *EventBroker) Subscribe(subID string, topics []string) *Subscriber {
 func (b *EventBroker) Publish(topic string, sessionID string, payload []byte) {
     seq := b.globalSeq.Add(1)
     env := &protocol.MessageEnvelope{
-        Version:   protocol.CurrentVersion,
-        ID:        fmt.Sprintf("evt-%d", seq),
+        JSONRPC:   protocol.JSONRPCVersion,
+        Method:    topic,
+        Params:    payload,
         SeqID:     seq,
         SessionID: sessionID,
-        Type:      topic,
-        Payload:   payload,
         Timestamp: time.Now().UTC(),
     }
 

@@ -82,8 +82,8 @@ The roadmap is strictly guided by the architectural invariants defined in `docs/
 
 #### Milestone 0.1: Project Scaffolding & Tooling
 
-- [ ] Initialize Go module (`go.mod`, Go 1.23+) at repository root.
-- [ ] Implement directory structure matching `docs/DESIGN.md` Section 5.1 (Package Layout):
+- [x] Initialize Go module (`go.mod`, Go 1.23+) at repository root.
+- [x] Implement directory structure matching `docs/DESIGN.md` Section 5.1 (Package Layout):
   ```text
   cmd/
     agentd/             # Daemon entrypoint
@@ -110,26 +110,26 @@ The roadmap is strictly guided by the architectural invariants defined in `docs/
   pkg/
     client/             # Public client SDK for IDE extensions and external tools
   ```
-- [ ] Configure structured logging with standard library `log/slog`.
-- [ ] Configure configuration management (JSON/TOML loader with OS-specific default paths: `~/.config/loki/` on Linux/macOS, `%APPDATA%\Loki\` on Windows).
-- [ ] Set up GitHub Actions CI with cross-platform matrix testing (`ubuntu-latest`, `macos-latest`, `windows-latest`).
+- [x] Configure structured logging with standard library `log/slog`.
+- [x] Configure configuration management (JSON/TOML loader with OS-specific default paths: `~/.config/loki/` on Linux/macOS, `%APPDATA%\Loki\` on Windows).
+- [x] Set up GitHub Actions CI with cross-platform matrix testing (`ubuntu-latest`, `macos-latest`, `windows-latest`).
 
 #### Milestone 0.2: Cross-Platform IPC Transport Layer
 
-- [ ] Define abstract transport interfaces:
+- [x] Define abstract transport interfaces:
   ```go
   type Transport interface {
       Listen(addr string) (net.Listener, error)
       Dial(addr string) (net.Conn, error)
   }
   ```
-- [ ] Implement Unix Domain Socket transport for Linux and macOS (`$XDG_RUNTIME_DIR/loki/agentd.sock` or `~/.loki/agentd.sock`) with POSIX permission checks (`0600`).
-- [ ] Implement Windows Named Pipe transport (`\\.\pipe\loki-agentd-<username>`) with secure DACLs (restricted to current user token).
-- [ ] Implement length-prefixed message framing layer:
+- [x] Implement Unix Domain Socket transport for Linux and macOS (`$XDG_RUNTIME_DIR/loki/agentd.sock` or `~/.loki/agentd.sock`) with POSIX permission checks (`0600`).
+- [x] Implement Windows Named Pipe transport (`\\.\pipe\loki-agentd-<username>`) with secure DACLs (restricted to current user token).
+- [x] Implement length-prefixed message framing layer:
   - 4-byte big-endian payload length header.
   - JSON-encoded message envelope: `version`, `id`, `type`, `payload`, `timestamp`.
   - Handle partial reads, write buffering, and frame reassembly.
-- [ ] Write integration test verifying bidirectional streaming and 10,000 framed message exchanges across Unix sockets and Windows pipes.
+- [x] Write integration test verifying bidirectional streaming and 10,000 framed message exchanges across Unix sockets and Windows pipes.
 
 ---
 

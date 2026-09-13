@@ -29,3 +29,28 @@ Thumbs.db
 .vscode/
 *.swp
 *~
+
+# SQLite WAL (Write-Ahead Logging) & Shared Memory files
+*.db-wal
+*.db-shm
+
+# Loki local daemon runtime & lockfiles
+.loki/
+*.pid
+*.lock
+
+# Environment & credentials (prevent secret leakage)
+.env
+.env.*
+*.key
+*.pem
+
+# Installer & release packages
+*.dmg
+*.msi
+*.zip
+*.tar.gz
+
+# Coverage reports
+coverage.txt
+coverage.html
