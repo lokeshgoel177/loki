@@ -139,19 +139,19 @@ The roadmap is strictly guided by the architectural invariants defined in `docs/
 
 #### Milestone 1.1: Daemon Lifecycle & Auto-Spawn Supervisor
 
-- [ ] Implement `agentd` background process management:
+- [x] Implement `agentd` background process management:
   - PID file management with stale lock detection (`~/.loki/agentd.pid`).
   - Graceful shutdown on `SIGINT`/`SIGTERM` closing active sessions and flushing DB.
-- [ ] Implement client auto-spawn supervisor in `loki` CLI:
+- [x] Implement client auto-spawn supervisor in `loki` CLI:
   - Client attempts IPC connection.
   - If daemon is not running, client launches `agentd` detached as a background subprocess, polls socket availability with exponential backoff (up to 3 seconds), and completes handshake.
 
 #### Milestone 1.2: Multiplexed Event Broker
 
-- [ ] Implement thread-safe in-memory publish/subscribe broker (`internal/events`):
+- [x] Implement thread-safe in-memory publish/subscribe broker (`internal/events`):
   - Topic/pattern subscription system supporting exact matching (`session.abc123.tool.started`) and wildcards (`session.abc123.*`, `*.delta`).
   - Buffered client subscriber channels with drop/backpressure metrics and slow consumer protection.
-- [ ] Define canonical core event taxonomy:
+- [x] Define canonical core event taxonomy:
   - `session.created`, `session.state_changed`, `session.finished`, `session.failed`, `session.compacted`
   - `message.delta`, `message.completed`
   - `tool.started`, `tool.output`, `tool.completed`, `tool.error`
